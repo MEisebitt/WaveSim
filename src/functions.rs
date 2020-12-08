@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::str::FromStr;
 
 const SPACING: f64 = 0.01;
@@ -156,4 +157,20 @@ pub fn get_cmap(cmap_path: &str) -> [[u8; 3]; 256] {
         rgb_array[i][2] = (f64::from_str(&data_array[i][3]).unwrap()*255.0).round() as u8;
     }
     return rgb_array
+}
+
+/// Returns the maximum absolute value of an Arc<Vec<Vec<f64>>>
+pub fn get_max_abs(obj: &Arc<Vec<Vec<f64>>>) -> f64 {
+    let len_outer: usize = obj.len();
+    let len_inner: usize = obj[0].len();
+    let mut current_max: f64 = 0.0;
+    
+    for i1 in 0..len_outer {
+        for i2 in 0..len_inner{
+            if obj[i1][i2].abs() > current_max {
+                current_max = obj[i1][i2].abs();
+            }
+        }
+    }
+    current_max
 }

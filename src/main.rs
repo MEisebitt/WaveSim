@@ -1,4 +1,10 @@
 mod functions;
+<<<<<<< Updated upstream
+=======
+
+use std::sync::Arc;
+//use std::cell::RefCell;
+>>>>>>> Stashed changes
 use std::str::FromStr;
 use druid::widget::prelude::*;
 use druid::kurbo::{Rect, Circle, Point};
@@ -12,6 +18,7 @@ const SI60: f64 = 0.8660254037844386;
 const CO60: f64 = 0.5;
 
 
+<<<<<<< Updated upstream
 struct AnimWidget {
     hex_grid: Vec<Vec<f64>>,
     hex_array_tn_minus_1: Vec<Vec<f64>>,
@@ -27,6 +34,42 @@ impl Widget<ApplicationData> for AnimWidget {
         if let Event::MouseDown(_) = event {
             self.n = 0;
             ctx.request_anim_frame();
+=======
+#[derive(Clone, Data)]
+struct SimulationData {
+    hex_grid: Arc<Vec<Vec<f64>>>,
+    hex_tnm1: Arc<Vec<Vec<f64>>>,
+    hex_tn: Arc<Vec<Vec<f64>>>,
+    hex_temp: Arc<Vec<Vec<f64>>>,
+    n: u32,
+    n_max: u32,
+    cmap: Arc<[[u8; 3]; 256]>,
+}
+
+impl SimulationData {
+    fn calc_next_frame(&mut self) {
+        {
+            //let hex_grid = &self.hex_grid;
+            //let hex_tnm1 = &self.hex_tnm1;
+            let hex_tn = &self.hex_tn;
+            let hex_temp = Arc::make_mut(&mut self.hex_temp);
+
+            for i_y in 1..self.hex_grid.len() - 1 {
+                for i_x in 1..self.hex_grid[0].len() - 1 {
+                    if self.hex_grid[i_y][i_x] == 1.0 {
+                        if i_y%2 == 0 {
+                            hex_temp[i_y][i_x] = 2.0*hex_tn[i_y][i_x] - self.hex_tnm1[i_y][i_x] + (SPEED*TIMESPACING/SPACING).powi(2)*
+                                (2.0/3.0*(hex_tn[i_y-1][i_x-1] + hex_tn[i_y-1][i_x] + hex_tn[i_y][i_x-1] + hex_tn[i_y][i_x+1] +
+                                hex_tn[i_y+1][i_x-1] + hex_tn[i_y+1][i_x]) - 4.0*hex_tn[i_y][i_x]);
+                        } else {
+                            hex_temp[i_y][i_x] = 2.0*hex_tn[i_y][i_x] - self.hex_tnm1[i_y][i_x] + (SPEED*TIMESPACING/SPACING).powi(2)*
+                                (2.0/3.0*(hex_tn[i_y-1][i_x] + hex_tn[i_y-1][i_x+1] + hex_tn[i_y][i_x-1] + hex_tn[i_y][i_x+1] +
+                                hex_tn[i_y+1][i_x] + hex_tn[i_y+1][i_x+1]) - 4.0*hex_tn[i_y][i_x]);
+                        }                    
+                    }
+                }            
+            }
+>>>>>>> Stashed changes
         }
     }
 
@@ -38,6 +81,21 @@ impl Widget<ApplicationData> for AnimWidget {
                 std::thread::sleep(std::time::Duration::from_millis(10));
                 ctx.request_anim_frame();
             }
+<<<<<<< Updated upstream
+=======
+            Event::Timer(id) => {
+                if *id == self.timer_id {
+                    if !data.anim_paused {
+                        ctx.request_paint();
+                        data.anim_data.calc_next_frame();
+                    }
+                    let deadline = Duration::from_millis(data.anim_iter);
+                    self.last_update = Instant::now();
+                    self.timer_id = ctx.request_timer(deadline);
+                }
+            }
+            _ => {}
+>>>>>>> Stashed changes
         }
     }
 
@@ -47,18 +105,27 @@ impl Widget<ApplicationData> for AnimWidget {
         bc.constrain((700.0, 700.0))
     }
 
+<<<<<<< Updated upstream
     fn paint(&mut self, ctx: &mut PaintCtx, _data: &ApplicationData, _env: &Env) {
         let hex_grid = &self.hex_grid;
         let to_draw = &self.hex_array_tn;
+=======
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &AppData, _env: &Env) {
+        let hex_grid = &data.anim_data.hex_grid;
+        let to_draw = &data.anim_data.hex_tn;
+>>>>>>> Stashed changes
         let xr: usize = to_draw[0].len();
         let yr: usize = to_draw.len();
         let mut image_vec: Vec<u8> = vec!(0; xr * yr * 3);
-        let flattened: Vec<f64> = to_draw.clone().into_iter().flatten().collect();
-        let max_val: f64 = flattened.clone().into_iter().map(|x| x.abs()).collect::<Vec<f64>>().iter().cloned().fold(0./0., f64::max)*1.2;
+        let max_val: f64 = functions::get_max_abs(&data.anim_data.hex_tn);
         for i_y in 0..yr {
             for i_x in 0..xr {
                 if hex_grid[i_y][i_x] != 0.0 {
+<<<<<<< Updated upstream
                 let cols = functions::determine_color(to_draw[i_y][i_x], &self.cmap, 0.0, 2.0*max_val);
+=======
+                let cols = functions::determine_color(to_draw[i_y][i_x], &data.anim_data.cmap, 0.0, 2.0*max_val);
+>>>>>>> Stashed changes
                 image_vec[i_y*xr*3 + i_x*3 + 0] = cols[0];
                 image_vec[i_y*xr*3 + i_x*3 + 1] = cols[1];
                 image_vec[i_y*xr*3 + i_x*3 + 2] = cols[2];
@@ -121,21 +188,80 @@ impl Widget<ApplicationData> for LiveCursor {
         bc.constrain((700.0, 700.0))
     }
 
+<<<<<<< Updated upstream
     fn paint(&mut self, ctx: &mut PaintCtx, data: &ApplicationData, _env: &Env) {
         let bounds = ctx.size().to_rect();
         let boxy = Rect{x0: 30.0, x1: 80.0, y0: 30.0, y1: 80.0};
+=======
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &AppData, _env: &Env) {
+        let hex_grid = &data.anim_data.hex_grid;
+        let to_draw = &data.anim_data.hex_tn;
+        let xr: usize = to_draw[0].len();
+        let yr: usize = to_draw.len();
+        let mut image_vec: Vec<u8> = vec!(0; xr * yr * 3);
+        let max_val: f64 = functions::get_max_abs(&data.anim_data.hex_tn);
+        for i_y in 0..yr {
+            for i_x in 0..xr {
+                if hex_grid[i_y][i_x] != 0.0 {
+                let cols = functions::determine_color(to_draw[i_y][i_x], &data.anim_data.cmap, 0.0, 2.0*max_val);
+                image_vec[i_y*xr*3 + i_x*3 + 0] = cols[0];
+                image_vec[i_y*xr*3 + i_x*3 + 1] = cols[1];
+                image_vec[i_y*xr*3 + i_x*3 + 2] = cols[2];
+                }
+            }
+        }
+        let img = ctx.make_image(xr, xr, &image_vec, druid::piet::ImageFormat::Rgb).expect("Yekis!");
+        ctx.draw_image(&img, Rect{x0: 0.0, y0: 0.0, x1: 700.0, y1: 700.0}, druid::piet::InterpolationMode::Bilinear);
+        // let bounds = ctx.size().to_rect();
+        // let boxy = Rect{x0: 30.0, x1: 80.0, y0: 30.0, y1: 80.0};
+>>>>>>> Stashed changes
         
-        ctx.fill(bounds, &Color::rgb8(36, 146, 36));
-        ctx.fill(boxy, &Color::rgb8(136, 16, 36));
+        // ctx.fill(bounds, &Color::rgb8(36, 146, 36));
+        // ctx.fill(boxy, &Color::rgb8(136, 16, 36));
 
         if data.cc_active && ctx.is_hot() {
             let circleboy = Circle{center: self.punkt, radius: data.cc_size}.segment(data.cc_size - 1.0, 0.0, 6.3);
-            ctx.fill(circleboy, &Color::rgb8(6, 16, 136));
+            ctx.fill(circleboy, &Color::rgb8(0, 204, 255));
         }
         
     }
 }
 
+<<<<<<< Updated upstream
+=======
+fn build_ui() -> impl Widget<AppData> {
+    let button_bar = Flex::column()
+        .with_spacer(20.0)
+        .with_child(Label::new("Configure").with_text_size(12.0))
+        .with_child(Label::new("Initial State").with_text_size(12.0))
+        .with_spacer(10.0)
+        .with_child(Switch::new().lens(AppData::cc_active))
+        .with_flex_spacer(1.0)
+        .with_child(Label::new("Size").with_text_size(12.0))
+        .with_spacer(10.0)
+        .with_child(Slider::new().with_range(0.0, 100.0).lens(AppData::cc_size))
+        .with_spacer(40.0)
+        .background(Color::rgb8(20, 20, 20))
+        .expand_height();
+
+    let cursor_window = LiveCursor{
+        punkt: Point{x: 100.0, y: 100.0},
+        cell_size: Size::new(700.0, 700.0)};
+
+    let simu_window = SimulationWidget{
+        timer_id: TimerToken::INVALID,
+        cell_size: Size::new(700.0, 700.0),
+        last_update: Instant::now()};
+
+    let anim_window = Either::new(|data, _env| data.cc_active, cursor_window, simu_window);
+    
+    Flex::row()
+        .with_child(button_bar.fix_width(100.0))
+        .with_spacer(1.0)
+        .with_flex_child(anim_window, 1.0)
+        .background(Color::rgb8(10, 10, 10))
+}
+>>>>>>> Stashed changes
 
 fn main() {
     // Loading colormap
@@ -207,6 +333,7 @@ fn main() {
     hex_array_tn[67*3*3][47*3*3] = 1.0;
     //hex_array_tn[47*3][67*3] = -1.0;
 
+<<<<<<< Updated upstream
     let animation_window = AnimWidget{hex_grid: hex_grid.clone(),
         hex_array_tn_minus_1: hex_array_tn_minus_1.clone(),
         hex_array_tn: hex_array_tn.clone(),
@@ -242,4 +369,23 @@ fn main() {
     let appdata = ApplicationData{cc_active: false, cc_size: 30.0, window_selection: true};//, anim_widget_data: Rc::new(RefCell::new(animation_window))};
 
     AppLauncher::with_window(WindowDesc::new(abnormale_closure).title("WaveSim").window_size((850.0, 850.0)).show_titlebar(false)).launch(appdata).expect("memes");
+=======
+    let window = WindowDesc::new(build_ui);
+
+    AppLauncher::with_window(window)
+        .launch(AppData {
+            cc_active: true,
+            cc_size: 30.0,
+            anim_data: SimulationData{
+                hex_grid: Arc::new(hex_grid),
+                hex_tnm1: Arc::new(hex_array_tn_minus_1),
+                hex_tn: Arc::new(hex_array_tn.clone()),
+                hex_temp: Arc::new(hex_array_tn),
+                n: 0,
+                n_max: 3000,
+                cmap: Arc::new(functions::get_cmap(cmap_path))},
+            anim_iter: 50, // Time in milliseconds
+            anim_paused: false,})
+        .expect("launch failed");
+>>>>>>> Stashed changes
 }
