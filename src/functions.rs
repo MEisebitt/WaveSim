@@ -120,8 +120,11 @@ pub fn determine_color(value: f64, cmap: &[[u8; 3]; 256], base_level: f64, range
 
 /// Parses CSV into a string vector
 pub fn csv_parse(path: &str, delimiter: char) -> Vec<Vec<String>> {
+    // Setting up error message
+    let mut error_message: String = String::from_str("Something went wrong reading the following file: ").expect("Could not parse");
+    error_message.push_str(path);
     // Loading file with data
-    let content = std::fs::read_to_string(path).expect("Something went wrong reading the file");
+    let content = std::fs::read_to_string(path).expect(&error_message);
     // Setting up string vectors to fill
     let mut data_array: Vec<Vec<String>> = Vec::new();
     let mut string_array: Vec<String> = Vec::new();
