@@ -4,7 +4,7 @@ use std::str::FromStr;
 use std::time::{Duration, Instant};
 use druid::widget::prelude::*;
 use druid::kurbo::{Rect, Circle, Point};
-use druid::widget::{Flex, Label, Switch, Either, Slider};
+use druid::widget::{Flex, Label, Switch, Either, Slider, Padding};
 use druid::{AppLauncher, WindowDesc, Widget, WidgetExt, RenderContext, Data, Lens, Color, TimerToken};
 
 
@@ -72,11 +72,14 @@ impl Widget<AppData> for SimulationWidget {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppData, _env: &Env) {
         match event {
             Event::WindowConnected => {
+                //self.cell_size = Size::new(data.anim_data.hex_grid[0].len() as f64, data.anim_data.hex_grid.len() as f64 * SI60);
                 ctx.request_paint();
                 self.last_update = Instant::now();
             }
             Event::MouseDown(_mouse_event) => {
+                //self.cell_size = Size::new(data.anim_data.hex_grid[0].len() as f64, data.anim_data.hex_grid.len() as f64 * SI60);
                 ctx.request_paint();
+                data.anim_paused = false;
                 let deadline = Duration::from_millis(data.anim_iter);
                 self.last_update = Instant::now();
                 self.timer_id = ctx.request_timer(deadline);
@@ -121,8 +124,8 @@ impl Widget<AppData> for SimulationWidget {
                 }
             }
         }
-        let img = ctx.make_image(xr, xr, &image_vec, druid::piet::ImageFormat::Rgb).expect("Yekis!");
-        ctx.draw_image(&img, Rect{x0: 0.0, y0: 0.0, x1: 700.0, y1: 700.0}, druid::piet::InterpolationMode::Bilinear);
+        let img = ctx.make_image(xr, yr, &image_vec, druid::piet::ImageFormat::Rgb).expect("Yekis!");
+        ctx.draw_image(&img, Rect{x0: 0.0, y0: 0.0, x1: self.cell_size.width, y1: self.cell_size.height}, druid::piet::InterpolationMode::Bilinear);
     }
 }
 
@@ -187,7 +190,12 @@ fn build_ui() -> impl Widget<AppData> {
         cell_size: Size::new(700.0, 700.0),
         last_update: Instant::now()};
 
-    let anim_window = Either::new(|data, _env| data.cc_active, cursor_window, simu_window);
+    let anim_window = Flex::column()
+        .with_child(Either::new(|data, _env| data.cc_active,
+            cursor_window,
+            Padding::new(20.0, simu_window).background(Color::rgb8(104, 104, 104))
+        )).with_flex_spacer(0.0);
+    
     
     Flex::row()
         .with_child(button_bar.fix_width(100.0))
@@ -227,10 +235,10 @@ fn main() {
     let min_y: f64 = functions::min_element_f64(&y1_array, &y2_array);
     let max_y: f64 = functions::max_element_f64(&y1_array, &y2_array);
     // Settung up boundaries for the array
-    let range_x_left: usize = (min_x / SPACING).abs().ceil() as usize + 20;
-    let range_x_right: usize = (max_x / SPACING).abs().ceil() as usize + 20;
-    let range_y_down: usize = (min_y / (SPACING*SI60)).abs().ceil() as usize + 20;
-    let range_y_up: usize = (max_y / (SPACING*SI60)).abs().ceil() as usize + 20;
+    let range_x_left: usize = (min_x / SPACING).abs().ceil() as usize + 3;
+    let range_x_right: usize = (max_x / SPACING).abs().ceil() as usize + 3;
+    let range_y_down: usize = (min_y / (SPACING*SI60)).abs().ceil() as usize + 3;
+    let range_y_up: usize = (max_y / (SPACING*SI60)).abs().ceil() as usize + 3;
 
     // Setting up hex grid
     let mut hex_grid: Vec<Vec<f64>> = Vec::with_capacity(range_y_down + range_y_up + 1);
