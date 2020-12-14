@@ -55,30 +55,28 @@ impl SimulationData {
 
 #[derive(Clone, Data, Lens)]
 struct AppData {
-    cc_active: bool,
+    edit_active: bool,
     cc_size: f64,
     anim_data: SimulationData,
     anim_iter: u64, // Time in milliseconds
     anim_paused: bool,
+    anim_height: f64
 }
 
 struct SimulationWidget {
     timer_id: TimerToken,
-    cell_size: Size,
     last_update: Instant,
+    cell_ratio: f64,
 }
 
 impl Widget<AppData> for SimulationWidget {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppData, _env: &Env) {
         match event {
             Event::WindowConnected => {
-                //self.cell_size = Size::new(data.anim_data.hex_grid[0].len() as f64, data.anim_data.hex_grid.len() as f64 * SI60);
                 ctx.request_paint();
                 self.last_update = Instant::now();
             }
             Event::MouseDown(_mouse_event) => {
-                //self.cell_size = Size::new(data.anim_data.hex_grid[0].len() as f64, data.anim_data.hex_grid.len() as f64 * SI60);
-                ctx.request_paint();
                 data.anim_paused = false;
                 let deadline = Duration::from_millis(data.anim_iter);
                 self.last_update = Instant::now();
@@ -99,12 +97,27 @@ impl Widget<AppData> for SimulationWidget {
         }
     }
 
-    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &AppData, _env: &Env) {}
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &AppData, _env: &Env) {
+        match event {
+            LifeCycle::WidgetAdded => {
+                self.cell_ratio = (data.anim_data.hex_grid[0].len() as f64) / (data.anim_data.hex_grid.len() as f64 * SI60);
+                ctx.request_layout();
+                ctx.request_paint();
+                self.last_update = Instant::now();
+            }
+            _ => {}
+        }
+    }
 
-    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &AppData, _data: &AppData, _env: &Env) {}
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &AppData, data: &AppData, _env: &Env) {
+        if old_data.anim_height != data.anim_height {
+            ctx.request_layout();
+            ctx.request_paint();
+        }
+    }
 
-    fn layout(&mut self, _layout_ctx: &mut LayoutCtx, _bc: &BoxConstraints, _data: &AppData, _env: &Env) -> Size {
-        self.cell_size
+    fn layout(&mut self, _layout_ctx: &mut LayoutCtx, _bc: &BoxConstraints, data: &AppData, _env: &Env) -> Size {
+        Size::new(data.anim_height*self.cell_ratio, data.anim_height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &AppData, _env: &Env) {
@@ -125,13 +138,13 @@ impl Widget<AppData> for SimulationWidget {
             }
         }
         let img = ctx.make_image(xr, yr, &image_vec, druid::piet::ImageFormat::Rgb).expect("Yekis!");
-        ctx.draw_image(&img, Rect{x0: 0.0, y0: 0.0, x1: self.cell_size.width, y1: self.cell_size.height}, druid::piet::InterpolationMode::Bilinear);
+        ctx.draw_image(&img, Rect{x0: 0.0, y0: 0.0, x1: data.anim_height*self.cell_ratio, y1: data.anim_height}, druid::piet::InterpolationMode::Bilinear);
     }
 }
 
 struct LiveCursor {
     punkt: Point,
-    cell_size: Size,
+    cell_ratio: f64,
 }
 
 impl Widget<AppData> for LiveCursor {
@@ -142,12 +155,26 @@ impl Widget<AppData> for LiveCursor {
         }
     }
 
-    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &AppData, _env: &Env) {}
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &AppData, _env: &Env) {
+        match event {
+            LifeCycle::WidgetAdded => {
+                self.cell_ratio = (data.anim_data.hex_grid[0].len() as f64) / (data.anim_data.hex_grid.len() as f64 * SI60);
+                ctx.request_layout();
+                ctx.request_paint();
+            }
+            _ => {}
+        }
+    }
 
-    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &AppData, _data: &AppData, _env: &Env) {}
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &AppData, data: &AppData, _env: &Env) {
+        if old_data.anim_height != data.anim_height {
+            ctx.request_layout();
+            ctx.request_paint();
+        }
+    }
 
-    fn layout(&mut self, _layout_ctx: &mut LayoutCtx, _bc: &BoxConstraints, _data: &AppData, _env: &Env) -> Size {
-        self.cell_size
+    fn layout(&mut self, _layout_ctx: &mut LayoutCtx, _bc: &BoxConstraints, data: &AppData, _env: &Env) -> Size {
+        Size::new(data.anim_height*self.cell_ratio, data.anim_height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &AppData, _env: &Env) {
@@ -157,41 +184,52 @@ impl Widget<AppData> for LiveCursor {
         ctx.fill(bounds, &Color::rgb8(36, 146, 36));
         ctx.fill(boxy, &Color::rgb8(136, 16, 36));
 
-        if data.cc_active && ctx.is_hot() {
+        if data.edit_active && ctx.is_hot() {
             let circleboy = Circle{center: self.punkt, radius: data.cc_size}.segment(data.cc_size - 1.0, 0.0, 6.3);
             ctx.fill(circleboy, &Color::rgb8(6, 16, 136));
-        }
-        
+        }        
     }
 }
 
 
 fn build_ui() -> impl Widget<AppData> {
+    let button_bar_edit = Flex::column()
+        .with_child(Label::new("Size").with_text_size(12.0))
+        .with_spacer(10.0)
+        .with_child(Slider::new().with_range(0.0, 100.0).lens(AppData::cc_size))
+        .with_spacer(40.0);
+    
+    let button_bar_anim = Flex::column()
+        .with_child(Label::new("Window Size").with_text_size(12.0))
+        .with_spacer(10.0)
+        .with_child(Slider::new().with_range(100.0, 1000.0).lens(AppData::anim_height))
+        .with_spacer(40.0);
+
+    let flex_button = Either::new(|data, _env| data.edit_active,
+        button_bar_edit,
+        button_bar_anim);
+
     let button_bar = Flex::column()
         .with_spacer(20.0)
         .with_child(Label::new("Configure").with_text_size(12.0))
         .with_child(Label::new("Initial State").with_text_size(12.0))
         .with_spacer(10.0)
-        .with_child(Switch::new().lens(AppData::cc_active))
+        .with_child(Switch::new().lens(AppData::edit_active))
         .with_flex_spacer(1.0)
-        .with_child(Label::new("Size").with_text_size(12.0))
-        .with_spacer(10.0)
-        .with_child(Slider::new().with_range(0.0, 100.0).lens(AppData::cc_size))
-        .with_spacer(40.0)
-        .background(Color::rgb8(20, 20, 20))
-        .expand_height();
+        .with_child(flex_button)
+        .background(Color::rgb8(20, 20, 20));
 
     let cursor_window = LiveCursor{
         punkt: Point{x: 100.0, y: 100.0},
-        cell_size: Size::new(700.0, 700.0)};
+        cell_ratio: 1.0};
 
     let simu_window = SimulationWidget{
         timer_id: TimerToken::INVALID,
-        cell_size: Size::new(700.0, 700.0),
-        last_update: Instant::now()};
+        last_update: Instant::now(),
+        cell_ratio: 1.0};
 
     let anim_window = Flex::column()
-        .with_child(Either::new(|data, _env| data.cc_active,
+        .with_child(Either::new(|data, _env| data.edit_active,
             cursor_window,
             Padding::new(20.0, simu_window).background(Color::rgb8(104, 104, 104))
         )).with_flex_spacer(0.0);
@@ -285,7 +323,7 @@ fn main() {
 
     AppLauncher::with_window(window)
         .launch(AppData {
-            cc_active: true,
+            edit_active: true,
             cc_size: 30.0,
             anim_data: SimulationData{
                 hex_grid: Arc::new(hex_grid),
@@ -296,6 +334,7 @@ fn main() {
                 n_max: 3000,
                 cmap: Arc::new(functions::get_cmap(cmap_path))},
             anim_iter: 50, // Time in milliseconds
-            anim_paused: false,})
+            anim_paused: false,
+            anim_height: 700.0})
         .expect("launch failed");
 }
