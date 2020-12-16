@@ -51,6 +51,20 @@ impl SimulationData {
         self.hex_tnm1 = self.hex_tn.clone();
         self.hex_tn = self.hex_temp.clone();
     }
+
+    fn add_initial(&mut self, x_perc_pos: f64, y_perc_pos: f64) {
+        let hex_grid = &self.hex_grid; 
+        let hex_tn = Arc::make_mut(&mut self.hex_tn);
+        let x_len = hex_grid[0].len();
+        let y_len = hex_grid.len();
+        let x_pos = ((x_len as f64)*x_perc_pos).floor() as usize;
+        let y_pos = ((y_len as f64)*y_perc_pos).floor() as usize;
+        if hex_grid[y_pos][x_pos] == 1.0 {
+            hex_tn[y_pos][x_pos] = 1.0;
+        } else {
+            println!("Outside");
+        }
+    }
 }
 
 #[derive(Clone, Data, Lens)]
@@ -60,7 +74,7 @@ struct AppData {
     anim_data: SimulationData,
     anim_iter: u64, // Time in milliseconds
     anim_paused: bool,
-    anim_height: f64
+    anim_height: f64,
 }
 
 struct SimulationWidget {
@@ -148,10 +162,18 @@ struct LiveCursor {
 }
 
 impl Widget<AppData> for LiveCursor {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, _data: &mut AppData, _env: &Env) {
-        if let Event::MouseMove(yekis) = event {
-            self.punkt = yekis.pos;
-            ctx.request_anim_frame();
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppData, _env: &Env) {
+        match event {
+            Event::MouseMove(yekis) => {
+                self.punkt = yekis.pos;
+                ctx.request_anim_frame();
+            }
+            Event::MouseDown(mouse_event) => {
+                let cursor_x_percent_pos: f64 = mouse_event.pos.x / (data.anim_height*self.cell_ratio);
+                let cursor_y_percent_pos: f64 = mouse_event.pos.y / data.anim_height;
+                data.anim_data.add_initial(cursor_x_percent_pos, cursor_y_percent_pos);
+            }
+            _ => {}
         }
     }
 
@@ -178,12 +200,25 @@ impl Widget<AppData> for LiveCursor {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &AppData, _env: &Env) {
-        let bounds = ctx.size().to_rect();
-        let boxy = Rect{x0: 30.0, x1: 80.0, y0: 30.0, y1: 80.0};
+        let hex_grid = &data.anim_data.hex_grid;
+        let to_draw = &data.anim_data.hex_tn;
+        let xr: usize = to_draw[0].len();
+        let yr: usize = to_draw.len();
+        let mut image_vec: Vec<u8> = vec!(0; xr * yr * 3);
+        let max_val: f64 = functions::get_max_abs(to_draw);
+        for i_y in 0..yr {
+            for i_x in 0..xr {
+                if hex_grid[i_y][i_x] != 0.0 {
+                let cols = functions::determine_color(to_draw[i_y][i_x], &data.anim_data.cmap, 0.0, 2.0*max_val);
+                image_vec[i_y*xr*3 + i_x*3 + 0] = cols[0];
+                image_vec[i_y*xr*3 + i_x*3 + 1] = cols[1];
+                image_vec[i_y*xr*3 + i_x*3 + 2] = cols[2];
+                }
+            }
+        }
+        let img = ctx.make_image(xr, yr, &image_vec, druid::piet::ImageFormat::Rgb).expect("Yekis!");
+        ctx.draw_image(&img, Rect{x0: 0.0, y0: 0.0, x1: data.anim_height*self.cell_ratio, y1: data.anim_height}, druid::piet::InterpolationMode::Bilinear);
         
-        ctx.fill(bounds, &Color::rgb8(36, 146, 36));
-        ctx.fill(boxy, &Color::rgb8(136, 16, 36));
-
         if data.edit_active && ctx.is_hot() {
             let circleboy = Circle{center: self.punkt, radius: data.cc_size}.segment(data.cc_size - 1.0, 0.0, 6.3);
             ctx.fill(circleboy, &Color::rgb8(6, 16, 136));
@@ -215,6 +250,10 @@ fn build_ui() -> impl Widget<AppData> {
         .with_child(Label::new("Initial State").with_text_size(12.0))
         .with_spacer(10.0)
         .with_child(Switch::new().lens(AppData::edit_active))
+        .with_spacer(30.0)
+        .with_child(Label::new("Window Size").with_text_size(12.0))
+        .with_spacer(10.0)
+        .with_child(Slider::new().with_range(100.0, 1000.0).lens(AppData::anim_height))
         .with_flex_spacer(1.0)
         .with_child(flex_button)
         .background(Color::rgb8(20, 20, 20));
@@ -230,7 +269,7 @@ fn build_ui() -> impl Widget<AppData> {
 
     let anim_window = Flex::column()
         .with_child(Either::new(|data, _env| data.edit_active,
-            cursor_window,
+            Padding::new(20.0, cursor_window).background(Color::rgb8(104, 104, 104)),
             Padding::new(20.0, simu_window).background(Color::rgb8(104, 104, 104))
         )).with_flex_spacer(0.0);
     
@@ -239,6 +278,8 @@ fn build_ui() -> impl Widget<AppData> {
         .with_child(button_bar.fix_width(100.0))
         .with_spacer(1.0)
         .with_flex_child(anim_window, 1.0)
+        .with_spacer(1.0)
+        .with_child(Label::new("Kek"))
         .background(Color::rgb8(10, 10, 10))
 }
 
@@ -315,9 +356,9 @@ fn main() {
     // Creating hex array for t0
     let hex_array_tn_minus_1 = vec!(vec!(0.0; range_x_left + range_x_right + 1); range_y_down + range_y_up + 1);
     // Creating hex array for t1
-    let mut hex_array_tn = vec!(vec!(0.0; range_x_left + range_x_right + 1); range_y_down + range_y_up + 1);
-    hex_array_tn[67*3*3][47*3*3] = 1.0;
-    //hex_array_tn[47*3][67*3] = -1.0;
+    let hex_array_tn = vec!(vec!(0.0; range_x_left + range_x_right + 1); range_y_down + range_y_up + 1);
+    // hex_array_tn[67*3*3][47*3*3] = 1.0;
+    // hex_array_tn[47*3][67*3] = -1.0;
 
     let window = WindowDesc::new(build_ui);
 

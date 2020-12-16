@@ -177,3 +177,12 @@ pub fn get_max_abs(obj: &Arc<Vec<Vec<f64>>>) -> f64 {
     }
     current_max
 }
+
+/// Returns the value of a Gaussian
+/// 
+/// - height: peak height
+/// - stdv: standard deviation
+/// - x: deviation from the peak
+pub fn gaussian(height: f64, stdv: f64, x: f64) -> f64 {
+    height*(-1.0*x.powi(2) / (2.0*stdv.powi(2))).exp()
+}
