@@ -65,6 +65,28 @@ impl SimulationData {
             println!("Outside");
         }
     }
+
+    fn add_initial_gauss(&mut self, x_perc_pos: f64, y_perc_pos: f64) {
+        let hex_grid = &self.hex_grid; 
+        let hex_tn = Arc::make_mut(&mut self.hex_tn);
+        let x_len = hex_grid[0].len();
+        let y_len = hex_grid.len();
+        let x_pos = ((x_len as f64)*x_perc_pos).floor() as usize;
+        let y_pos = ((y_len as f64)*y_perc_pos).floor() as usize;
+        // if hex_grid[y_pos][x_pos] == 1.0 {
+        //     hex_tn[y_pos][x_pos] = 1.0;
+        // } else {
+        //     println!("Outside");
+        // }
+        for iy in 0..y_len {
+            for ix in 0..x_len {
+                if hex_grid[iy][ix] == 1.0 {
+                    let dist: f64 = functions::grid_distance(x_pos, y_pos, ix, iy, 10, 10);
+                    hex_tn[iy][ix] += functions::gaussian(1.0, 0.03, dist);
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Data, Lens)]
@@ -171,7 +193,7 @@ impl Widget<AppData> for LiveCursor {
             Event::MouseDown(mouse_event) => {
                 let cursor_x_percent_pos: f64 = mouse_event.pos.x / (data.anim_height*self.cell_ratio);
                 let cursor_y_percent_pos: f64 = mouse_event.pos.y / data.anim_height;
-                data.anim_data.add_initial(cursor_x_percent_pos, cursor_y_percent_pos);
+                data.anim_data.add_initial_gauss(cursor_x_percent_pos, cursor_y_percent_pos);
             }
             _ => {}
         }
@@ -289,7 +311,7 @@ fn main() {
     let head_path: String = String::from(exe_path.parent().expect("").parent().expect("").parent().expect("").to_str().expect(""));
     // Loading colormap
     let mut cmap_path_temp: String = head_path.clone();
-    cmap_path_temp.push_str("/data/cmaps/berlin.csv");
+    cmap_path_temp.push_str("/data/cmaps/CET-D6.csv");
     let cmap_path: &str = &cmap_path_temp;
     // Loading txt file with vertices data
     let mut input_path_temp: String = head_path.clone();

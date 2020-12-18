@@ -186,3 +186,10 @@ pub fn get_max_abs(obj: &Arc<Vec<Vec<f64>>>) -> f64 {
 pub fn gaussian(height: f64, stdv: f64, x: f64) -> f64 {
     height*(-1.0*x.powi(2) / (2.0*stdv.powi(2))).exp()
 }
+
+/// Gives the distance of two points on the grid
+pub fn grid_distance(i_x_1: usize, i_y_1: usize, i_x_2: usize, i_y_2: usize, x_off: usize, y_off: usize) -> f64 {
+    let (x_1, y_1) = get_cord(i_x_1, i_y_1, x_off, y_off);
+    let (x_2, y_2) = get_cord(i_x_2, i_y_2, x_off, y_off);
+    ((x_1 - x_2).powi(2) + (y_1 - y_2).powi(2)).sqrt()
+}
