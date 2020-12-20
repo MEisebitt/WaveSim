@@ -4,7 +4,7 @@ use std::str::FromStr;
 use std::time::{Duration, Instant};
 use druid::widget::prelude::*;
 use druid::kurbo::{Rect, Circle, Point};
-use druid::widget::{Flex, Label, Switch, Either, Slider, Padding};
+use druid::widget::{Flex, Label, Switch, Either, Slider, Padding, RadioGroup};
 use druid::{AppLauncher, WindowDesc, Widget, WidgetExt, RenderContext, Data, Lens, Color, TimerToken};
 
 
@@ -52,37 +52,34 @@ impl SimulationData {
         self.hex_tn = self.hex_temp.clone();
     }
 
-    fn add_initial(&mut self, x_perc_pos: f64, y_perc_pos: f64) {
+    fn add_initial(&mut self, x_perc_pos: f64, y_perc_pos: f64, height: f64) {
         let hex_grid = &self.hex_grid; 
         let hex_tn = Arc::make_mut(&mut self.hex_tn);
         let x_len = hex_grid[0].len();
         let y_len = hex_grid.len();
         let x_pos = ((x_len as f64)*x_perc_pos).floor() as usize;
         let y_pos = ((y_len as f64)*y_perc_pos).floor() as usize;
+        
         if hex_grid[y_pos][x_pos] == 1.0 {
-            hex_tn[y_pos][x_pos] = 1.0;
+            hex_tn[y_pos][x_pos] += height;
         } else {
             println!("Outside");
         }
     }
 
-    fn add_initial_gauss(&mut self, x_perc_pos: f64, y_perc_pos: f64) {
+    fn add_initial_gauss(&mut self, x_perc_pos: f64, y_perc_pos: f64, stdv: f64, height: f64) {
         let hex_grid = &self.hex_grid; 
         let hex_tn = Arc::make_mut(&mut self.hex_tn);
         let x_len = hex_grid[0].len();
         let y_len = hex_grid.len();
         let x_pos = ((x_len as f64)*x_perc_pos).floor() as usize;
         let y_pos = ((y_len as f64)*y_perc_pos).floor() as usize;
-        // if hex_grid[y_pos][x_pos] == 1.0 {
-        //     hex_tn[y_pos][x_pos] = 1.0;
-        // } else {
-        //     println!("Outside");
-        // }
+        
         for iy in 0..y_len {
             for ix in 0..x_len {
                 if hex_grid[iy][ix] == 1.0 {
                     let dist: f64 = functions::grid_distance(x_pos, y_pos, ix, iy, 10, 10);
-                    hex_tn[iy][ix] += functions::gaussian(1.0, 0.03, dist);
+                    hex_tn[iy][ix] += functions::gaussian(height, stdv, dist);
                 }
             }
         }
@@ -97,6 +94,8 @@ struct AppData {
     anim_iter: u64, // Time in milliseconds
     anim_paused: bool,
     anim_height: f64,
+    radio_status: LiveCursorRadio,
+    initial_strength: f64,
 }
 
 struct SimulationWidget {
@@ -178,6 +177,12 @@ impl Widget<AppData> for SimulationWidget {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Data)]
+enum LiveCursorRadio {
+    Point,
+    Gauss,
+}
+
 struct LiveCursor {
     punkt: Point,
     cell_ratio: f64,
@@ -193,7 +198,11 @@ impl Widget<AppData> for LiveCursor {
             Event::MouseDown(mouse_event) => {
                 let cursor_x_percent_pos: f64 = mouse_event.pos.x / (data.anim_height*self.cell_ratio);
                 let cursor_y_percent_pos: f64 = mouse_event.pos.y / data.anim_height;
-                data.anim_data.add_initial_gauss(cursor_x_percent_pos, cursor_y_percent_pos);
+                
+                match data.radio_status {
+                    LiveCursorRadio::Point => {data.anim_data.add_initial(cursor_x_percent_pos, cursor_y_percent_pos, data.initial_strength);}
+                    LiveCursorRadio::Gauss => {data.anim_data.add_initial_gauss(cursor_x_percent_pos, cursor_y_percent_pos, data.cc_size, data.initial_strength);}
+                }
             }
             _ => {}
         }
@@ -240,20 +249,32 @@ impl Widget<AppData> for LiveCursor {
         }
         let img = ctx.make_image(xr, yr, &image_vec, druid::piet::ImageFormat::Rgb).expect("Yekis!");
         ctx.draw_image(&img, Rect{x0: 0.0, y0: 0.0, x1: data.anim_height*self.cell_ratio, y1: data.anim_height}, druid::piet::InterpolationMode::Bilinear);
+        let radius: f64 = (data.cc_size/SPACING) / (xr as f64) * data.anim_height*self.cell_ratio;
         
         if data.edit_active && ctx.is_hot() {
-            let circleboy = Circle{center: self.punkt, radius: data.cc_size}.segment(data.cc_size - 1.0, 0.0, 6.3);
-            ctx.fill(circleboy, &Color::rgb8(6, 16, 136));
+            let circleboy = Circle{center: self.punkt, radius: radius}.segment(radius - 1.0, 0.0, 6.3);
+            ctx.fill(circleboy, &Color::rgb8(230, 230, 230));
         }        
     }
 }
 
 
 fn build_ui() -> impl Widget<AppData> {
+    let add_initial_options: [(&str, LiveCursorRadio); 2] =
+    [("Point", LiveCursorRadio::Point), ("Gaussian", LiveCursorRadio::Gauss)];
+
     let button_bar_edit = Flex::column()
+        .with_child(Label::new("Type").with_text_size(12.0))
+        .with_spacer(10.0)
+        .with_child(RadioGroup::new(add_initial_options.to_vec()).lens(AppData::radio_status))
+        .with_spacer(30.0)
         .with_child(Label::new("Size").with_text_size(12.0))
         .with_spacer(10.0)
-        .with_child(Slider::new().with_range(0.0, 100.0).lens(AppData::cc_size))
+        .with_child(Slider::new().with_range(1.0*SPACING, 100.0*SPACING).lens(AppData::cc_size))
+        .with_spacer(30.0)
+        .with_child(Label::new("Strength").with_text_size(12.0))
+        .with_spacer(10.0)
+        .with_child(Slider::new().with_range(-10.0, 10.0).lens(AppData::initial_strength))
         .with_spacer(40.0);
     
     let button_bar_anim = Flex::column()
@@ -300,8 +321,6 @@ fn build_ui() -> impl Widget<AppData> {
         .with_child(button_bar.fix_width(100.0))
         .with_spacer(1.0)
         .with_flex_child(anim_window, 1.0)
-        .with_spacer(1.0)
-        .with_child(Label::new("Kek"))
         .background(Color::rgb8(10, 10, 10))
 }
 
@@ -387,7 +406,7 @@ fn main() {
     AppLauncher::with_window(window)
         .launch(AppData {
             edit_active: true,
-            cc_size: 30.0,
+            cc_size: 10.0*SPACING,
             anim_data: SimulationData{
                 hex_grid: Arc::new(hex_grid),
                 hex_tnm1: Arc::new(hex_array_tn_minus_1),
@@ -398,6 +417,8 @@ fn main() {
                 cmap: Arc::new(functions::get_cmap(cmap_path))},
             anim_iter: 50, // Time in milliseconds
             anim_paused: false,
-            anim_height: 700.0})
+            anim_height: 700.0,
+            radio_status: LiveCursorRadio::Gauss,
+            initial_strength: 1.0})
         .expect("launch failed");
 }
