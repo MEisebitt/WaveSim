@@ -12,4 +12,4 @@ an arbitrary shape for the simulation.
 - After compilation run with ```cargo run --release```
 - Alternatively run the executable file in WaveSim/target/release
 ## Screenshots
-[![Example screenshot](https://raw.githubusercontent.com/MEisebitt/WaveSim/main/screenshots/example_1.png)]
+![Example screenshot](https://raw.githubusercontent.com/MEisebitt/WaveSim/main/screenshots/example_1.png)
