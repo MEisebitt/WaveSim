@@ -134,10 +134,9 @@ pub fn csv_parse(path: &str, delimiter: char) -> Vec<Vec<String>> {
         if character == delimiter {
             string_array.push(string.clone());
             string = "".to_string();
-        } else if character == '\r' {
+        } else if character == '\n' {
             string_array.push(string.clone());
             string = "".to_string();
-        } else if character == '\n' {
             data_array.push(string_array.clone());
             string_array = Vec::new();
         } else {
